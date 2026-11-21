@@ -1,0 +1,35 @@
+name: Jetson CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+        with:
+          version: "0.14.6"
+      - run: ruff format --check .
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t simulated-boat-ci jetson/setup
+      - name: Build and test
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/jetson/src:/home/ros2_user/ros2_ws/src:ro" \
+            -v "$GITHUB_WORKSPACE/tools:/tools:ro" \
+            simulated-boat-ci bash -c '
+              test_status=0
+              colcon test --return-code-on-test-failure || test_status=$?
+              colcon test-result --verbose || test_status=$?
+              python3 -m pytest -p no:cacheprovider /tools/test_serial_relay.py || test_status=$?
+              exit "$test_status"
+            '
