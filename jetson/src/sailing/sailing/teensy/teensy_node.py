@@ -32,8 +32,11 @@ def encode_yul_output(msg):
 
 
 def encode_dylan_output(msg):
-    # TODO: convert your project's output to packet bytes.
-    ...
+    # If msg.data is true it returns start marker, 0x01, end marker
+    # If msg.data is false it returns start marker, 0x00, end marker
+    if msg.data:
+        return bytes([0xFF, 0x01, 0xEE])
+    return bytes([0xFF, 0x00, 0xEE])
 
 
 class Teensy(Node):
