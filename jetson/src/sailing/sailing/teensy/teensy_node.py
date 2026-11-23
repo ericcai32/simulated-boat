@@ -53,6 +53,8 @@ class Teensy(Node):
                 self.create_subscription(
                     UInt8, "no_go_zone_band", self.no_go_band_callback, 10
                 )
+            if self.project == "dylan":
+                self.create_subscription(Bool, "flipped_override", self.dylan_callback, 10)
             else:
                 # TODO: add your project's subscription here, guarded by its name.
                 # Choose your own topic/type and use your matching encoder.
@@ -69,6 +71,9 @@ class Teensy(Node):
 
     def no_go_band_callback(self, msg):
         self.encode_and_send(msg, encode_no_go_band)
+
+    def dylan_callback(self, msg):
+        self.encode_and_send(msg, encode_dylan_output)
 
     def encode_and_send(self, msg, encoder):
         try:
