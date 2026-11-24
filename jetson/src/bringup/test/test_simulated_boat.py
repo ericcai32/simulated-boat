@@ -35,10 +35,18 @@ def test_full_graph(monkeypatch):
         "no_go_zone_band": UInt8,
     }
     samples = {topic: [] for topic in topics}
+    timed_samples = {topic: [] for topic in topics}
+    first_gps_time = None
     buoy_times = []
     waypoint_ids = []
 
     def record(topic, msg):
+        nonlocal first_gps_time
+        now = time.monotonic()
+        if topic == "gps" and first_gps_time is None:
+            first_gps_time = now
+        if first_gps_time is not None:
+            timed_samples[topic].append((now - first_gps_time, msg))
         samples[topic].append(msg)
         if topic == "buoy_position":
             buoy_times.append(time.monotonic())
@@ -108,7 +116,7 @@ def test_full_graph(monkeypatch):
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
             )
-            deadline = time.monotonic() + 38
+            deadline = time.monotonic() + 58
             while time.monotonic() < deadline:
                 executor.spin_once(timeout_sec=0.02)
                 if process.poll() is not None:
@@ -119,6 +127,8 @@ def test_full_graph(monkeypatch):
                     and len(wire) >= 30
                     and any(b - a > 24 for a, b in zip(buoy_times, buoy_times[1:]))
                     and len(waypoint_ids) >= 5
+                    and first_gps_time is not None
+                    and time.monotonic() - first_gps_time > 54
                 ):
                     # Continue a full cycle after discovery so serial covers all bands too.
                     if {wire[i] for i in range(1, len(wire) - 1, 3)} == {0, 1, 2, 3}:
@@ -138,7 +148,7 @@ def test_full_graph(monkeypatch):
                     )
                 elif topic == "imu":
                     assert all(
-                        -5 <= m.x <= 5 and -2 <= m.y <= 2 and 0 <= m.z < 360
+                        -180 <= m.x <= 180 and -2 <= m.y <= 2 and 0 <= m.z < 360
                         for m in messages
                     )
                 elif topic == "buoy_position":
@@ -176,6 +186,19 @@ def test_full_graph(monkeypatch):
             assert all(
                 next_target[a] == b for a, b in zip(waypoint_ids, waypoint_ids[1:])
             )
+            assert {35.0, -35.0, 170.0} <= {m.x for m in samples["imu"]}
+            assert all(abs(m.x) <= 5 for t, m in timed_samples["imu"] if t > 36)
+            for topic in ("mainsail_angle", "rudder_angle", "jib_angle"):
+                frozen = [
+                    m.data for t, m in timed_samples[f"received_{topic}"] if 42 < t < 50
+                ]
+                commands = [m.data for t, m in timed_samples[topic] if 42 < t < 50]
+                recovered = [
+                    m.data for t, m in timed_samples[f"received_{topic}"] if t > 53
+                ]
+                assert frozen and len(set(frozen)) == 1, topic
+                assert len(set(commands)) > 10, topic
+                assert len(set(recovered)) > 1, topic
             complete = bytes(wire[: len(wire) // 3 * 3])
             assert complete
             assert set(complete[0::3]) == {0xFF}

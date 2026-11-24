@@ -21,7 +21,10 @@ The Teensy packet is `[0xFF, band, 0xEE]`.
 
 Scripted data publishes at 10 Hz. Waypoints advance within 3 meters and repeat;
 buoy detections alternate 5 seconds on / 25 seconds silent. Actuator feedback
-follows commands by 0.3 seconds and stays simulated when a Teensy is connected.
+normally follows commands by 0.3 seconds and stays simulated when a Teensy is connected.
+
+A repeating fault cycle includes excessive heel, capsizing, and stuck actuator feedback,
+followed by recovery.
 
 | Topics | ROS message | Contents |
 | --- | --- | --- |

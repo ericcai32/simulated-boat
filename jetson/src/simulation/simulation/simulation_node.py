@@ -23,14 +23,35 @@ class DelayedFeedback:
             "jib_side_flag": 0,
         }
 
+        self.latest = self.values.copy()
+
     def command(self, topic, value, now):
         self.pending.append((now + self.delay, topic, value))
 
-    def sample(self, now):
+    def sample(self, now, stuck=False):
         while self.pending and self.pending[0][0] <= now:
             _, topic, value = self.pending.popleft()
-            self.values[topic] = value
+            self.latest[topic] = value
+        for topic, value in self.latest.items():
+            if not stuck or topic == "jib_side_flag":
+                self.values[topic] = value
         return self.values.copy()
+
+
+def scripted_roll(elapsed_seconds, phase):
+    """Repeat normal, excessive heel in both directions, and capsize every minute."""
+    elapsed = elapsed_seconds % 60.0
+    if 10 <= elapsed < 18:
+        return 35.0
+    if 18 <= elapsed < 26:
+        return -35.0
+    if 26 <= elapsed < 34:
+        return 170.0
+    return 5.0 * math.sin(phase)
+
+
+def actuators_stuck(elapsed_seconds):
+    return 40 <= elapsed_seconds % 60.0 < 52
 
 
 def buoy_visible(elapsed_seconds):
@@ -70,6 +91,8 @@ class Simulation(Node):
         self.feedback.command(topic, msg.data, self.get_clock().now().nanoseconds / 1e9)
 
     def publish_sample(self):
+        now = self.get_clock().now().nanoseconds / 1e9
+        elapsed = now - self.started_at
         phase = math.radians(self.tick % 360)
         gps = NavSatFix()
         gps.header.stamp = self.get_clock().now().to_msg()
@@ -81,19 +104,18 @@ class Simulation(Node):
         self.gps.publish(gps)
         self.imu.publish(
             Vector3(
-                x=5.0 * math.sin(phase),
+                x=scripted_roll(elapsed, phase),
                 y=2.0 * math.cos(phase),
                 z=float(self.tick % 360),
             )
         )
         self.wind.publish(Int32(data=self.tick % 360))
         # Camera axes: x right, y down, z forward; all distances in meters.
-        elapsed = self.get_clock().now().nanoseconds / 1e9 - self.started_at
         if buoy_visible(elapsed):
             self.buoy.publish(
                 Vector3(x=2.0 * math.sin(phase), y=0.5, z=10.0 + math.cos(phase))
             )
-        values = self.feedback.sample(self.get_clock().now().nanoseconds / 1e9)
+        values = self.feedback.sample(now, stuck=actuators_stuck(elapsed))
         for topic, (publisher, msg_type) in self.feedback_publishers.items():
             publisher.publish(msg_type(data=values[topic]))
         self.tick += 1
