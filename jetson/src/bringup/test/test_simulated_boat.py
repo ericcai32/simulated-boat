@@ -201,6 +201,11 @@ def test_full_graph(monkeypatch):
 
 def test_member_launches_select_only_requested_project():
     for project in ("chloe", "matteus", "yul", "dylan"):
+        expected_output = (
+            "TX ff 00 ee"
+            if project == "dylan"
+            else f"{project}: subscription not implemented yet"
+        )
         with tempfile.TemporaryFile(mode="w+") as log:
             process = subprocess.Popen(
                 [
@@ -220,7 +225,7 @@ def test_member_launches_select_only_requested_project():
                 while time.monotonic() < deadline:
                     log.seek(0)
                     output = log.read()
-                    if "subscription not implemented yet" in output:
+                    if expected_output in output:
                         break
                     time.sleep(0.05)
                 # The selected member must keep spinning instead of returning from main.
@@ -231,7 +236,7 @@ def test_member_launches_select_only_requested_project():
                 assert f"[{project}_node-" in output, output
                 assert "process has finished" not in output, output
                 assert "process has died" not in output, output
-                assert f"{project}: subscription not implemented yet" in output, output
+                assert expected_output in output, output
                 for node in (
                     "simulation_node",
                     "waypoint_node",
@@ -243,7 +248,11 @@ def test_member_launches_select_only_requested_project():
                     project
                 }:
                     assert f"[{other}_node-" not in output, output
-                assert "TX " not in output, output
+                if project == "dylan":
+                    assert "TX ff 01 ee" not in output, output
+                    assert "subscription not implemented yet" not in output, output
+                else:
+                    assert "TX " not in output, output
                 assert "[ERROR]" not in output, output
             finally:
                 if process.poll() is None:

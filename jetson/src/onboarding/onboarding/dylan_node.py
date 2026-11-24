@@ -3,13 +3,18 @@
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from geometry_msgs.msg import Vector3
+from std_msgs.msg import Bool
 
 
 class DylanNode(Node):
     def __init__(self):
         super().__init__("dylan_node")
-        # TODO: add your publishers, subscriptions, and project logic.
-        ...
+        self.publisher = self.create_publisher(Bool, "flipped_override", 10)
+        self.create_subscription(Vector3, "imu", self.flipped_over_callback, 10)
+
+    def flipped_over_callback(self, msg):
+        self.publisher.publish(Bool(data=abs(msg.x) >= 90.0))
 
 
 def main(args=None):

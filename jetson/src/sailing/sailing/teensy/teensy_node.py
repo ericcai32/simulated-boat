@@ -3,7 +3,7 @@
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from std_msgs.msg import UInt8
+from std_msgs.msg import Bool, UInt8
 
 from .serial_port import SerialPort
 
@@ -56,7 +56,7 @@ class Teensy(Node):
                 self.create_subscription(
                     UInt8, "no_go_zone_band", self.no_go_band_callback, 10
                 )
-            if self.project == "dylan":
+            elif self.project == "dylan":
                 self.create_subscription(Bool, "flipped_override", self.dylan_callback, 10)
             else:
                 # TODO: add your project's subscription here, guarded by its name.
